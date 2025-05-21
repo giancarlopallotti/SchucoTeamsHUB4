@@ -1,8 +1,16 @@
 // Percorso: /pages/components/sidebar.js
 import { useState } from "react";
+import { useRouter } from "next/router"; // <--- AGGIUNTA
 
 export default function Sidebar({ user }) {
   const [showUser, setShowUser] = useState(false);
+  const router = useRouter(); // <--- AGGIUNTA
+
+  // Funzione logout reale
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+  };
 
   return (
     <aside style={{
@@ -59,6 +67,27 @@ export default function Sidebar({ user }) {
       <nav style={{ flex: 1, marginTop: 16 }}>
         {/* Menu voci qui */}
       </nav>
+      {/* Bottone logout in fondo alla sidebar */}
+      <div style={{ padding: "16px" }}>
+        <button
+          onClick={handleLogout}
+          style={{
+            width: "100%",
+            padding: "9px 0",
+            borderRadius: 10,
+            border: "none",
+            background: "#ff5d5d",
+            color: "#fff",
+            fontWeight: 700,
+            fontSize: 16,
+            cursor: "pointer",
+            marginTop: 12,
+            boxShadow: "0 2px 8px #0002"
+          }}
+        >
+          Esci
+        </button>
+      </div>
     </aside>
   );
 }

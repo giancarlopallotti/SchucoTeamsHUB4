@@ -7,7 +7,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [modalUser, setModalUser] = useState(null);
-  const [viewUser, setViewUser] = useState(null); // <--- Dettaglio utente
+  const [viewUser, setViewUser] = useState(null);
 
   // Filtri
   const [search, setSearch] = useState("");
@@ -86,6 +86,23 @@ export default function UsersPage() {
         </div>
       </div>
     );
+  }
+
+  // --- PATCH: salva utente (multi-tag ok, senza stravolgimenti) ---
+  async function handleSaveUser(userData) {
+    const method = userData.id ? "PUT" : "POST";
+    const url = userData.id ? `/api/users/${userData.id}` : "/api/users";
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData)
+    });
+    if (res.ok) {
+      fetch("/api/users").then(res => res.json()).then(setUsers);
+      setModalUser(null);
+    } else {
+      alert("Errore salvataggio utente!");
+    }
   }
 
   return (
@@ -214,25 +231,27 @@ export default function UsersPage() {
                   </span>
                 </td>
                 <td style={tdStyle}>
-                  {(u.tags || "").split(",").map(tag => (
-                    <span key={tag} style={{
-                      background: "#d2e3fc",
-                      color: "#204080",
-                      padding: "2px 8px",
-                      borderRadius: 6,
-                      marginRight: 3,
-                      fontSize: 12,
-                    }}>{tag}</span>
-                  ))}
+                  {(u.tags && u.tags.length > 0)
+                    ? u.tags.split(",").map(tag => (
+                        <span key={tag} style={{
+                          background: "#e6f4ff",
+                          color: "#0073b1",
+                          padding: "2px 9px",
+                          borderRadius: 8,
+                          marginRight: 4,
+                          fontSize: 13,
+                          fontWeight: 600,
+                        }}>{tag}</span>
+                      ))
+                    : <span style={{color:"#b9b9b9"}}>-</span>
+                  }
                 </td>
-                {/* Nota visibile in cella */}
                 <td style={{ ...tdStyle, maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
                   {u.note && u.note.length > 0
                     ? <span title={u.note}>{u.note.length > 40 ? u.note.substring(0, 40) + "…" : u.note}</span>
                     : <span style={{ color: '#ccc' }}>-</span>}
                 </td>
                 <td style={tdStyle}>
-                  {/* Tasto VISTA: mostra tutti i dati utente in modale read-only */}
                   <button
                     title="Visualizza dettagli"
                     style={{
@@ -248,7 +267,6 @@ export default function UsersPage() {
                   >
                     👁️
                   </button>
-                  {/* Tasto EDIT */}
                   <button
                     onClick={() => setModalUser(u)}
                     style={{
@@ -267,18 +285,13 @@ export default function UsersPage() {
             ))}
           </tbody>
         </table>
-        {/* MODALE DETTAGLIO UTENTE (read-only) */}
         {viewUser && <UserDetailModal user={viewUser} onClose={() => setViewUser(null)} />}
       </div>
-      {/* Modale UserModal (edit/nuovo utente) */}
       {modalUser && (
         <UserModal
           user={modalUser}
           onClose={() => setModalUser(null)}
-          onSaved={() => {
-            fetch("/api/users").then(res => res.json()).then(setUsers);
-            setModalUser(null);
-          }}
+          onSave={handleSaveUser}
         />
       )}
       <style>{`

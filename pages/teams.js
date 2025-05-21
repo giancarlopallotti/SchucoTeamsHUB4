@@ -1,207 +1,218 @@
-// /pages/teams.js
-// UI lista moderna Team + modale aggiungi/modifica, responsive, filtro stato/tag/responsabile
-import { useEffect, useState } from "react";
+// Percorso: /pages/teams.js
+
+import React, { useState, useEffect } from "react";
+import TeamModal from "../pages/components/TeamModal";
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState([]);
-  const [users, setUsers] = useState([]); // Per dropdown responsabile/membri
-  const [tags, setTags] = useState([]); // Per dropdown tags
-  const [showModal, setShowModal] = useState(false);
-  const [editTeam, setEditTeam] = useState(null); // team in editing
+  const [users, setUsers] = useState([]);
+  const [tags, setTags] = useState([]);
+  const [modalTeam, setModalTeam] = useState(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [managerFilter, setManagerFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+  const [sortField, setSortField] = useState("name");
+  const [sortDir, setSortDir] = useState("asc");
 
   useEffect(() => {
     fetchTeams();
-    fetch("/api/users").then(r => r.json()).then(setUsers);
-    fetch("/api/tags").then(r => r.json()).then(setTags);
+    fetch("/api/users").then(res => res.json()).then(setUsers);
+    fetch("/api/tags").then(res => res.json()).then(setTags);
   }, []);
 
   function fetchTeams() {
-    fetch("/api/teams").then(r => r.json()).then(setTeams);
+    fetch("/api/teams")
+      .then(res => res.json())
+      .then(setTeams);
   }
 
-  function openNewTeam() {
-    setEditTeam(null);
-    setShowModal(true);
+  // Utility per trovare oggetto user da id
+  function getUserById(id) {
+    return users.find(u => String(u.id) === String(id));
   }
 
-  function openEditTeam(team) {
-    setEditTeam(team);
-    setShowModal(true);
+  // Filtra e ordina
+  const filteredTeams = teams
+    .filter(t =>
+      (!search ||
+        t.name?.toLowerCase().includes(search.toLowerCase()) ||
+        t.description?.toLowerCase().includes(search.toLowerCase())
+      ) &&
+      (!statusFilter || t.status === statusFilter) &&
+      (!managerFilter || String(t.manager) === managerFilter) &&
+      (!tagFilter || (t.tags || "").split(",").map(x => x.trim()).includes(tagFilter))
+    )
+    .sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      let va = a[sortField] || "";
+      let vb = b[sortField] || "";
+      return va.localeCompare(vb) * dir;
+    });
+
+  function toggleSort(field) {
+    if (sortField === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
   }
 
-  // ...filtri, handler, ecc. (placeholder, vedi sotto)
+  function resetFilters() {
+    setSearch(""); setStatusFilter(""); setManagerFilter(""); setTagFilter("");
+  }
 
   return (
-    <div style={{ padding: 32 }}>
-      <h1>Team</h1>
-      <div style={{ marginBottom: 24, display: "flex", justifyContent: "space-between" }}>
-        <div>
-          {/* Filtri avanzati: stato/tags/responsabile (solo UI, logica da aggiungere) */}
-          <input placeholder="Cerca per nome o descrizione..." style={{ padding: 8, width: 240, marginRight: 16 }} />
-          <select style={{ marginRight: 8 }}>
-            <option value="">Tutti gli stati</option>
-            <option value="attivo">Attivo</option>
-            <option value="archiviato">Archiviato</option>
-          </select>
-          <select style={{ marginRight: 8 }}>
-            <option value="">Tutti i responsabili</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.name} {u.surname}</option>)}
-          </select>
-          <select style={{ minWidth: 100 }}>
-            <option value="">Tutti i tag</option>
-            {tags.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
+    <div style={{ padding: "2rem" }}>
+      <h1 style={{ fontWeight: "bold", marginBottom: 22 }}>Team</h1>
+      {/* Barra filtri */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 20, alignItems: "center" }}>
+        <input
+          placeholder="Cerca per nome o descrizione..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={inputStyle}
+        />
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={inputStyle}>
+          <option value="">Tutti gli stati</option>
+          <option value="attivo">Attivo</option>
+          <option value="bloccato">Bloccato</option>
+          <option value="archiviato">Archiviato</option>
+        </select>
+        <select value={managerFilter} onChange={e => setManagerFilter(e.target.value)} style={inputStyle}>
+          <option value="">Tutti i responsabili</option>
+          {users.map(u => (
+            <option key={u.id} value={u.id}>{u.name} {u.surname}</option>
+          ))}
+        </select>
+        <select value={tagFilter} onChange={e => setTagFilter(e.target.value)} style={inputStyle}>
+          <option value="">Tutti i tag</option>
+          {tags.map(t => (
+            <option key={t.id || t.name || t.label} value={t.name || t.label}>{t.name || t.label}</option>
+          ))}
+        </select>
+        <button onClick={resetFilters} style={{
+          background: "#e6e9f6", border: "none", borderRadius: 8, padding: "8px 16px",
+          fontWeight: 600, color: "#23285A", cursor: "pointer"
+        }}>Reset</button>
+        <div style={{ flex: "1 0 90px", textAlign: "right" }}>
+          <button
+            onClick={() => setModalTeam({})}
+            style={{
+              background: "#0749a6",
+              color: "#fff",
+              padding: "10px 22px",
+              fontWeight: "bold",
+              border: "none",
+              borderRadius: 12,
+              fontSize: 16,
+              cursor: "pointer"
+            }}>
+            + Nuovo Team
+          </button>
         </div>
-        <button
-          style={{ background: "#2843A1", color: "#fff", padding: "12px 22px", borderRadius: 8, border: 0, fontWeight: 700, fontSize: 16 }}
-          onClick={openNewTeam}
-        >+ Nuovo Team</button>
       </div>
-      <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 2px 8px #99c7e040", padding: 18 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 17 }}>
-          <thead style={{ background: "#f4f8fd" }}>
-            <tr>
-              <th>ID</th>
-              <th>Nome</th>
-              <th>Descrizione</th>
-              <th>Stato</th>
-              <th>Responsabile</th>
-              <th>Membri</th>
-              <th>Tag</th>
-              <th>Azioni</th>
+      {/* Tabella */}
+      <div style={{
+        background: "#fff", borderRadius: 16, boxShadow: "0 1px 4px #0002", padding: 18, maxWidth: 1350, margin: "auto"
+      }}>
+        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+          <thead>
+            <tr style={{ background: "#f6f8fa" }}>
+              <th style={thStyle}>ID</th>
+              <th style={thStyle} onClick={() => toggleSort("name")} className="sortable">
+                Nome {sortField === "name" ? (sortDir === "asc" ? "▲" : "▼") : ""}
+              </th>
+              <th style={thStyle}>Descrizione</th>
+              <th style={thStyle} onClick={() => toggleSort("status")} className="sortable">
+                Stato {sortField === "status" ? (sortDir === "asc" ? "▲" : "▼") : ""}
+              </th>
+              <th style={thStyle}>Responsabile</th>
+              <th style={thStyle}>Membri</th>
+              <th style={thStyle}>Tag</th>
+              <th style={thStyle}>Azioni</th>
             </tr>
           </thead>
           <tbody>
-            {teams.map(team => (
-              <tr key={team.id}>
-                <td>{team.id}</td>
-                <td>{team.name}</td>
-                <td>{team.description}</td>
-                <td>
+            {filteredTeams.map((t, i) => (
+              <tr key={t.id} style={{ background: i % 2 === 0 ? "#f8fbff" : "#fff" }}>
+                <td style={tdStyle}>{t.id}</td>
+                <td style={tdStyle}>{t.name}</td>
+                <td style={tdStyle}>{t.description}</td>
+                <td style={tdStyle}>
                   <span style={{
-                    background: team.status === "archiviato" ? "#aaa" : "#76ce40",
-                    color: "#222",
-                    borderRadius: 8,
-                    padding: "2px 14px",
-                    fontWeight: 700,
-                  }}>{team.status || "attivo"}</span>
+                    background: t.status === "attivo" ? "#d1f8c3" : t.status === "bloccato" ? "#fce4e4" : "#eee",
+                    color: t.status === "attivo" ? "#278626" : t.status === "bloccato" ? "#d32f2f" : "#aaa",
+                    fontWeight: 600, padding: "3px 10px", borderRadius: 8,
+                  }}>
+                    {t.status}
+                  </span>
                 </td>
-                <td>{team.responsabile_name || "-"}</td>
-                <td>{team.membri?.map(m => m.name).join(", ")}</td>
-                <td>{team.tags?.map(t => t.label).join(", ")}</td>
-                <td>
-                  <button onClick={() => openEditTeam(team)} style={{ marginRight: 8 }}>✏️</button>
-                  <button style={{ color: "#c00" }}>🗑️</button>
+                <td style={tdStyle}>
+                  {getUserById(t.manager)?.name} {getUserById(t.manager)?.surname}
+                </td>
+                <td style={tdStyle}>
+                  {(t.members || "")
+                    .split(",")
+                    .map(id => {
+                      const u = getUserById(id.trim());
+                      return u ? (
+                        <span key={u.id}
+                          style={{
+                            background: "#d2e3fc", color: "#204080", padding: "2px 8px", borderRadius: 6,
+                            marginRight: 3, fontSize: 12, display: "inline-block"
+                          }}>
+                          {u.name}
+                        </span>
+                      ) : null;
+                    })}
+                </td>
+                <td style={tdStyle}>
+                  {(t.tags || "")
+                    .split(",")
+                    .map(tag => (
+                      <span key={tag} style={{
+                        background: "#ffe8c7", color: "#a35b00", padding: "2px 8px",
+                        borderRadius: 6, marginRight: 3, fontSize: 12, display: "inline-block"
+                      }}>{tag}</span>
+                    ))}
+                </td>
+                <td style={tdStyle}>
+                  <button
+                    title="Modifica"
+                    onClick={() => setModalTeam(t)}
+                    style={{
+                      background: "#f5f5f5", border: "none", borderRadius: 8, padding: "6px 14px",
+                      cursor: "pointer"
+                    }}>✏️</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {showModal && (
+      {/* Modale creazione/modifica team */}
+      {modalTeam && (
         <TeamModal
-          team={editTeam}
-          onClose={() => setShowModal(false)}
-          onSave={() => { setShowModal(false); fetchTeams(); }}
-          users={users}
-          tags={tags}
+          team={modalTeam}
+          onClose={() => setModalTeam(null)}
+          onSaved={() => {
+            fetchTeams();
+            setModalTeam(null);
+          }}
         />
       )}
+      <style>{`
+        .sortable { cursor: pointer; user-select: none; }
+        .sortable:hover { text-decoration: underline; }
+      `}</style>
     </div>
   );
 }
 
-// Modale Aggiungi/Modifica Team (UI moderna, 2 colonne, validazione base)
-function TeamModal({ team, onClose, onSave, users, tags }) {
-  const isEdit = !!team;
-  const [form, setForm] = useState({
-    name: team?.name || "",
-    description: team?.description || "",
-    status: team?.status || "attivo",
-    responsible_id: team?.responsible_id || "",
-    membri: team?.membri?.map(m => m.id) || [],
-    tags: team?.tags?.map(t => t.id) || [],
-  });
-  const [saving, setSaving] = useState(false);
-
-  function handleChange(e) {
-    const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
-  }
-
-  function handleMultiChange(e, key) {
-    const values = Array.from(e.target.selectedOptions).map(opt => +opt.value);
-    setForm(f => ({ ...f, [key]: values }));
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setSaving(true);
-    const method = isEdit ? "PUT" : "POST";
-    const url = isEdit ? `/api/teams/${team.id}` : "/api/teams";
-    const body = {
-      ...form,
-      membri: form.membri,
-      tags: form.tags
-    };
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-    setSaving(false);
-    if (res.ok) onSave();
-    // TODO: gestione errori
-  }
-
-  return (
-    <div style={{
-      position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", background: "#2233",
-      zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center"
-    }}>
-      <form onSubmit={handleSubmit} style={{ background: "#fff", borderRadius: 18, padding: 36, minWidth: 540, boxShadow: "0 6px 32px #0012", maxWidth: 700 }}>
-        <h2 style={{ marginTop: 0 }}>{isEdit ? "Modifica Team" : "Nuovo Team"}</h2>
-        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <label>Nome <span style={{ color: "#f23" }}>*</span><br />
-              <input name="name" value={form.name} onChange={handleChange} required style={{ width: "100%", padding: 8, marginBottom: 16 }} />
-            </label>
-            <label>Descrizione<br />
-              <input name="description" value={form.description} onChange={handleChange} style={{ width: "100%", padding: 8, marginBottom: 16 }} />
-            </label>
-            <label>Stato<br />
-              <select name="status" value={form.status} onChange={handleChange} style={{ width: "100%", padding: 8, marginBottom: 16 }}>
-                <option value="attivo">Attivo</option>
-                <option value="archiviato">Archiviato</option>
-              </select>
-            </label>
-          </div>
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <label>Responsabile<br />
-              <select name="responsible_id" value={form.responsible_id} onChange={handleChange} required style={{ width: "100%", padding: 8, marginBottom: 16 }}>
-                <option value="">Seleziona utente</option>
-                {users.map(u => <option key={u.id} value={u.id}>{u.name} {u.surname} ({u.email})</option>)}
-              </select>
-            </label>
-            <label>Membri (Ctrl+click per selezione multipla)<br />
-              <select multiple name="membri" value={form.membri} onChange={e => handleMultiChange(e, "membri")}
-                style={{ width: "100%", padding: 8, marginBottom: 16, minHeight: 70 }}>
-                {users.map(u => <option key={u.id} value={u.id}>{u.name} {u.surname} ({u.email})</option>)}
-              </select>
-            </label>
-            <label>Tag (Ctrl+click per selezione multipla)<br />
-              <select multiple name="tags" value={form.tags} onChange={e => handleMultiChange(e, "tags")}
-                style={{ width: "100%", padding: 8, marginBottom: 16, minHeight: 70 }}>
-                {tags.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-              </select>
-            </label>
-          </div>
-        </div>
-        <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end", gap: 12 }}>
-          <button type="button" onClick={onClose} style={{ padding: "10px 22px", borderRadius: 8 }}>Annulla</button>
-          <button type="submit" style={{ background: "#2843A1", color: "#fff", padding: "10px 22px", borderRadius: 8 }} disabled={saving}>{saving ? "Salva..." : "Salva"}</button>
-        </div>
-      </form>
-    </div>
-  );
-}
+const inputStyle = {
+  minWidth: 120, padding: "7px 10px", borderRadius: 8, border: "1px solid #e0e6f2", flex: "1 1 140px"
+};
+const thStyle = { padding: 10, fontWeight: 600, cursor: "default" };
+const tdStyle = { padding: 10 };

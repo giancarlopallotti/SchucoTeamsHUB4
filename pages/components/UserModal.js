@@ -1,294 +1,189 @@
 // Percorso: /pages/components/UserModal.js
-import { useState, useEffect } from "react";
 
-const emptyUser = {
-  id: "",
-  name: "",
-  surname: "",
-  email: "",
-  password: "",
-  phone: "",
-  address: "",
-  note: "",
-  role: "",
-  status: "",
-  tags: "",
-};
+import { useEffect, useState } from "react";
+import Select from "react-select";
 
-export default function UserModal({ user = {}, onClose, onSaved }) {
-  const [form, setForm] = useState({ ...emptyUser, ...user });
-  const [errors, setErrors] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [roles, setRoles] = useState([]);
+export default function UserModal({ user = {}, onClose, onSave }) {
+  const [form, setForm] = useState({
+    id: user.id,
+    name: user.name || "",
+    surname: user.surname || "",
+    email: user.email || "",
+    password: "",
+    phone: user.phone || "",
+    address: user.address || "",
+    note: user.note || "",
+    role: user.role || "",
+    status: user.status || "attivo",
+    tags: user.tags
+      ? (typeof user.tags === "string"
+        ? user.tags.split(",").map(t => t.trim()).filter(Boolean)
+        : user.tags)
+      : [],
+  });
+
+  const [tagOptions, setTagOptions] = useState([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    document.body.style.overflow = "hidden";
-    fetch("/api/roles")
+    fetch("/api/tags")
       .then(res => res.json())
-      .then(setRoles)
-      .catch(() => setRoles([]));
-    return () => { document.body.style.overflow = "auto"; };
+      .then(tags => setTagOptions(
+        tags.map(t => ({
+          value: t.name || t.label,
+          label: t.name || t.label,
+        }))
+      ));
   }, []);
 
-  function validate() {
-    let errs = {};
-    if (!form.name.trim()) errs.name = "Il nome è obbligatorio";
-    if (!form.surname.trim()) errs.surname = "Il cognome è obbligatorio";
-    if (!form.email.trim()) errs.email = "L'email è obbligatoria";
-    if (!form.role.trim()) errs.role = "Il ruolo è obbligatorio";
-    return errs;
-  }
+  useEffect(() => {
+    setForm(f => ({
+      ...f,
+      id: user.id,
+      name: user.name || "",
+      surname: user.surname || "",
+      email: user.email || "",
+      password: "",
+      phone: user.phone || "",
+      address: user.address || "",
+      note: user.note || "",
+      role: user.role || "",
+      status: user.status || "attivo",
+      tags: user.tags
+        ? (typeof user.tags === "string"
+          ? user.tags.split(",").map(t => t.trim()).filter(Boolean)
+          : user.tags)
+        : [],
+    }));
+  }, [user]);
 
-  function handleChange(e) {
-    const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
-    setErrors(errs => ({ ...errs, [name]: undefined })); // cancella errore su edit
-  }
-
-  async function handleSubmit(e) {
+  function handleSubmit(e) {
     e.preventDefault();
-    const errs = validate();
-    setErrors(errs);
-    if (Object.keys(errs).length > 0) return;
+    if (!form.name || !form.surname || !form.email || (!form.id && !form.password)) {
+      setError("Compila tutti i campi obbligatori.");
+      return;
+    }
+    setError("");
+    // Conversione robusta
+    const tagsString = Array.isArray(form.tags)
+      ? form.tags.join(",")
+      : (form.tags || "");
+    const payload = { ...form, tags: tagsString };
+    onSave(payload);
+  }
 
-    setSaving(true);
-    const method = form.id ? "PUT" : "POST";
-    const url = form.id ? `/api/users/${form.id}` : "/api/users";
-    const res = await fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setSaving(false);
-    if (res.ok) onSaved();
-    else alert("Errore nel salvataggio utente!");
+  function setField(field, value) {
+    setForm(f => ({ ...f, [field]: value }));
   }
 
   return (
     <div style={{
       position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
-      background: "rgba(0,0,0,0.28)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center"
+      background: "rgba(0,0,0,0.25)", zIndex: 2000,
+      display: "flex", alignItems: "center", justifyContent: "center"
     }}>
       <form
         onSubmit={handleSubmit}
         style={{
-          background: "#fff",
-          borderRadius: 18,
-          boxShadow: "0 4px 24px #0003",
-          padding: 32,
-          minWidth: 340,
-          maxWidth: 480,
-          width: "96vw",
+          background: "#fff", borderRadius: 16, minWidth: 420, padding: 36,
+          boxShadow: "0 2px 18px #0002", maxWidth: 510,
         }}
-        noValidate
       >
-        <h2 style={{
-          fontSize: 25,
-          fontWeight: 700,
-          color: "#23285A",
-          marginBottom: 24,
-          textAlign: "center"
-        }}>
+        <h2 style={{ color: "#23285A", fontWeight: 700, marginBottom: 22 }}>
           {form.id ? "Modifica Utente" : "Nuovo Utente"}
         </h2>
-        <div className="modal-fields" style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 18,
-          marginBottom: 24
-        }}>
-          {/* Sinistra */}
-          <div style={{ flex: "1 1 180px", minWidth: 0 }}>
-            <LabelInput
-              label="Nome"
-              name="name"
-              value={form.name}
-              onChange={handleChange}
-              error={errors.name}
-              required
-            />
-            <LabelInput
-              label="Email"
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={handleChange}
-              error={errors.email}
-              required
-              // Email ora sempre modificabile!
-            />
-            <LabelInput
-              label="Telefono"
-              name="phone"
-              value={form.phone}
-              onChange={handleChange}
-            />
-            {/* RUOLO: select da DB */}
-            <div style={{ marginBottom: 18 }}>
-              <label style={labelStyle}>
-                Ruolo <span style={{ color: "#d32f2f" }}>*</span>
-              </label>
-              <select
-                name="role"
-                value={form.role}
-                onChange={handleChange}
-                required
-                style={{
-                  ...inputStyle,
-                  borderColor: errors.role ? "#d32f2f" : "#e0e6f2",
-                  background: errors.role ? "#fff4f5" : "#f9fafc"
-                }}
-              >
-                <option value="">-- Seleziona ruolo --</option>
-                {roles.map(r => (
-                  <option value={r.name} key={r.id}>{r.name}</option>
-                ))}
-              </select>
-              {errors.role && (
-                <div style={{ color: "#d32f2f", fontSize: 12, marginTop: 2 }}>{errors.role}</div>
-              )}
-            </div>
-            <LabelInput
-              label="Tag"
-              name="tags"
-              value={form.tags}
-              onChange={handleChange}
-              placeholder="TEAM1,MANUTENZIONE"
-            />
+        {error && <div style={{ color: "red", fontWeight: 600, marginBottom: 12 }}>{error}</div>}
+        <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label>Nome *</label>
+            <input value={form.name} onChange={e => setField("name", e.target.value)} required className="input" />
           </div>
-          {/* Destra */}
-          <div style={{ flex: "1 1 180px", minWidth: 0 }}>
-            <LabelInput
-              label="Cognome"
-              name="surname"
-              value={form.surname}
-              onChange={handleChange}
-              error={errors.surname}
-              required
-            />
-            <LabelInput
-              label="Password"
-              name="password"
+          <div style={{ flex: 1 }}>
+            <label>Cognome *</label>
+            <input value={form.surname} onChange={e => setField("surname", e.target.value)} required className="input" />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label>Email *</label>
+            <input type="email" value={form.email} onChange={e => setField("email", e.target.value)} required className="input" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label>Password {form.id ? "(lascia vuoto per non cambiare)" : "*"}</label>
+            <input
               type="password"
               value={form.password}
-              onChange={handleChange}
+              onChange={e => setField("password", e.target.value)}
+              minLength={form.id ? 0 : 4}
               required={!form.id}
-              placeholder={form.id ? "Lascia vuoto per non cambiare" : ""}
-            />
-            <LabelInput
-              label="Indirizzo"
-              name="address"
-              value={form.address}
-              onChange={handleChange}
-            />
-            <div style={{ marginBottom: 18 }}>
-              <label style={labelStyle}>Stato</label>
-              <select
-                name="status"
-                value={form.status}
-                onChange={handleChange}
-                style={inputStyle}
-              >
-                <option value="">-- Seleziona --</option>
-                <option value="attivo">Attivo</option>
-                <option value="bloccato">Bloccato</option>
-                <option value="archiviato">Archiviato</option>
-              </select>
-            </div>
-          </div>
-          {/* Note su due colonne */}
-          <div style={{ width: "100%" }}>
-            <label style={labelStyle}>Note</label>
-            <textarea
-              name="note"
-              value={form.note}
-              onChange={handleChange}
-              rows={2}
-              style={{ ...inputStyle, resize: "vertical" }}
+              className="input"
             />
           </div>
         </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 14, marginTop: 12 }}>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              padding: "10px 26px",
-              background: "#f4f6fa",
-              color: "#23285A",
-              border: "none",
-              borderRadius: 9,
-              fontWeight: "bold",
-              fontSize: 16
-            }}>
-            Annulla
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            style={{
-              padding: "10px 32px",
-              background: "#0b3f86",
-              color: "#fff",
-              border: "none",
-              borderRadius: 9,
-              fontWeight: "bold",
-              fontSize: 16,
-              boxShadow: "0 2px 6px #0b3f8620"
-            }}>
-            {saving ? "Salvataggio..." : "Salva"}
+        <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label>Telefono</label>
+            <input value={form.phone} onChange={e => setField("phone", e.target.value)} className="input" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label>Indirizzo</label>
+            <input value={form.address} onChange={e => setField("address", e.target.value)} className="input" />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label>Ruolo *</label>
+            <input value={form.role} onChange={e => setField("role", e.target.value)} required className="input" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label>Stato *</label>
+            <select value={form.status} onChange={e => setField("status", e.target.value)} className="input">
+              <option value="attivo">Attivo</option>
+              <option value="bloccato">Bloccato</option>
+              <option value="archiviato">Archiviato</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label>Tag</label>
+          <Select
+            isMulti
+            options={tagOptions}
+            value={tagOptions.filter(opt => form.tags.includes(opt.value))}
+            onChange={vals => setField("tags", vals.map(v => v.value))}
+            placeholder="Seleziona uno o più tag"
+            styles={{
+              control: (base) => ({ ...base, minHeight: 36, borderRadius: 8 }),
+              valueContainer: (base) => ({ ...base, padding: "0 6px" }),
+              multiValue: (base) => ({ ...base, background: "#e6f4ff", color: "#0073b1", borderRadius: 7 }),
+            }}
+          />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label>Note</label>
+          <textarea value={form.note} onChange={e => setField("note", e.target.value)} className="input" rows={2} />
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button type="button" onClick={onClose} style={{
+            background: "#e6e9f6", color: "#333", border: "none",
+            borderRadius: 8, padding: "8px 28px", fontWeight: 600, fontSize: 16, cursor: "pointer"
+          }}>Annulla</button>
+          <button type="submit" style={{
+            background: "#0070f3", color: "#fff", border: "none",
+            borderRadius: 8, padding: "8px 28px", fontWeight: 600, fontSize: 16, cursor: "pointer"
+          }}>
+            Salva
           </button>
         </div>
-        <style>{`
-          @media (max-width: 700px) {
-            .modal-fields {
-              flex-direction: column;
-            }
-          }
-          input:disabled {
-            background: #f6f6f6;
-          }
-        `}</style>
       </form>
+      <style>{`
+        .input {
+          width: 100%; padding: 7px 9px; margin-top: 2px;
+          border: 1px solid #e0e6f2; border-radius: 8px;
+          font-size: 15px; box-sizing: border-box;
+        }
+        label { font-weight: 600; font-size: 15px; }
+      `}</style>
     </div>
   );
 }
-
-function LabelInput({ label, error, required, ...props }) {
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <label style={labelStyle}>
-        {label}
-        {required && <span style={{ color: "#d32f2f", marginLeft: 4 }}>*</span>}
-      </label>
-      <input
-        {...props}
-        style={{
-          ...inputStyle,
-          borderColor: error ? "#d32f2f" : "#e0e6f2",
-          background: error ? "#fff4f5" : "#f9fafc"
-        }}
-      />
-      {error && (
-        <div style={{ color: "#d32f2f", fontSize: 12, marginTop: 2 }}>{error}</div>
-      )}
-    </div>
-  );
-}
-
-const labelStyle = {
-  display: "block",
-  fontWeight: 600,
-  color: "#23285A",
-  marginBottom: 4,
-  letterSpacing: 0.1
-};
-const inputStyle = {
-  width: "100%",
-  padding: "8px 12px",
-  border: "1px solid #e0e6f2",
-  borderRadius: 7,
-  fontSize: 15,
-  background: "#f9fafc",
-  outline: "none"
-};
