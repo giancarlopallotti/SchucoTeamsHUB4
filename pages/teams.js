@@ -1,5 +1,3 @@
-// Percorso: /pages/teams.js
-
 import React, { useState, useEffect } from "react";
 import TeamModal from "../pages/components/TeamModal";
 
@@ -27,12 +25,17 @@ export default function TeamsPage() {
       .then(setTeams);
   }
 
-  // Utility per trovare oggetto user da id
   function getUserById(id) {
     return users.find(u => String(u.id) === String(id));
   }
 
-  // Filtra e ordina
+  // Generazione filtri dinamici:
+  const usedStatuses = Array.from(new Set(teams.map(t => t.status).filter(Boolean)));
+  const usedManagers = Array.from(new Set(teams.map(t => t.manager).filter(Boolean)));
+  const usedTags = Array.from(new Set(
+    teams.flatMap(t => (t.tags || "").split(",").map(x => x.trim()).filter(Boolean))
+  ));
+
   const filteredTeams = teams
     .filter(t =>
       (!search ||
@@ -76,20 +79,23 @@ export default function TeamsPage() {
         />
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={inputStyle}>
           <option value="">Tutti gli stati</option>
-          <option value="attivo">Attivo</option>
-          <option value="bloccato">Bloccato</option>
-          <option value="archiviato">Archiviato</option>
+          {usedStatuses.map(status => (
+            <option key={status} value={status}>{status}</option>
+          ))}
         </select>
         <select value={managerFilter} onChange={e => setManagerFilter(e.target.value)} style={inputStyle}>
           <option value="">Tutti i responsabili</option>
-          {users.map(u => (
-            <option key={u.id} value={u.id}>{u.name} {u.surname}</option>
-          ))}
+          {usedManagers.map(mId => {
+            const user = getUserById(mId);
+            return user
+              ? <option key={user.id} value={user.id}>{user.name} {user.surname}</option>
+              : null;
+          })}
         </select>
         <select value={tagFilter} onChange={e => setTagFilter(e.target.value)} style={inputStyle}>
           <option value="">Tutti i tag</option>
-          {tags.map(t => (
-            <option key={t.id || t.name || t.label} value={t.name || t.label}>{t.name || t.label}</option>
+          {usedTags.map(tag => (
+            <option key={tag} value={tag}>{tag}</option>
           ))}
         </select>
         <button onClick={resetFilters} style={{
