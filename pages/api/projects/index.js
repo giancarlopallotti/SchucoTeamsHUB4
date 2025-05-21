@@ -1,32 +1,28 @@
-// /pages/api/projects/index.js
-import db from "../../../db/db";
+// Percorso: /pages/api/projects/index.js
+// Scopo: Lista/creazione progetti. Gestione clienti come CSV.
+// Autore: ChatGPT, v2 - 21/05/2025
+
+const db = require("../../../db/db.js");
 
 export default function handler(req, res) {
   if (req.method === "GET") {
-    // Restituisce tutti i progetti
+    // Estrae tutti i progetti
     const projects = db.prepare("SELECT * FROM projects ORDER BY created_at DESC").all();
     res.status(200).json(projects);
   } else if (req.method === "POST") {
-    // Aggiunge un nuovo progetto
-    const { title, description, status, priority, deadline, note } = req.body;
+    const { title, description, status, priority, deadline, note, clients } = req.body;
     if (!title) {
-      res.status(400).json({ message: "Il titolo è obbligatorio" });
-      return;
+      return res.status(400).json({ error: "Titolo obbligatorio" });
     }
-    const stmt = db.prepare(
-      "INSERT INTO projects (title, description, status, priority, deadline, note, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now','localtime'))"
-    );
-    const result = stmt.run(
-      title,
-      description || "",
-      status || "da iniziare",
-      priority || "",
-      deadline || "",
-      note || ""
-    );
-    res.status(201).json({ id: result.lastInsertRowid });
+    // Gestione clienti CSV
+    const clientsCSV = Array.isArray(clients) ? clients.join(",") : (clients || "");
+    db.prepare(`
+      INSERT INTO projects (title, description, status, priority, deadline, note, clients)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(title, description, status, priority, deadline, note, clientsCSV);
+    res.status(201).json({ success: true });
   } else {
     res.setHeader("Allow", ["GET", "POST"]);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+    res.status(405).end("Metodo non permesso");
   }
 }
