@@ -1,4 +1,4 @@
-// Percorso: /pages/users.js
+// /pages/users.js
 
 import { useEffect, useState } from "react";
 import UserModal from "./components/UserModal";
@@ -6,6 +6,8 @@ import UserModal from "./components/UserModal";
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [tags, setTags] = useState([]);
   const [modalUser, setModalUser] = useState(null);
   const [viewUser, setViewUser] = useState(null);
 
@@ -18,23 +20,29 @@ export default function UsersPage() {
   const [sortDir, setSortDir] = useState("asc");
 
   useEffect(() => {
-    fetch("/api/users")
-      .then(res => res.json())
-      .then(setUsers);
-    fetch("/api/roles")
-      .then(res => res.json())
-      .then(setRoles);
+    fetch("/api/users").then(res => res.json()).then(setUsers);
+    fetch("/api/roles").then(res => res.json()).then(setRoles);
+    fetch("/api/teams").then(res => res.json()).then(setTeams);
+    fetch("/api/tags").then(res => res.json()).then(setTags);
   }, []);
 
   // Filtra e ordina
   const filteredUsers = users
     .filter(u =>
       (!search ||
-        u.name.toLowerCase().includes(search.toLowerCase()) ||
-        u.surname.toLowerCase().includes(search.toLowerCase()) ||
-        u.email.toLowerCase().includes(search.toLowerCase())
+        u.name?.toLowerCase().includes(search.toLowerCase()) ||
+        u.surname?.toLowerCase().includes(search.toLowerCase()) ||
+        u.email?.toLowerCase().includes(search.toLowerCase())
       ) &&
-      (!roleFilter || u.role === roleFilter) &&
+      (!roleFilter ||
+        (u.roles_teams && u.roles_teams.length
+          ? u.roles_teams.some(rt =>
+              rt.role === roleFilter ||
+              rt.role_id === roleFilter ||
+              (typeof rt.role === "object" && rt.role?.name === roleFilter)
+            )
+          : u.role === roleFilter)
+      ) &&
       (!statusFilter || u.status === statusFilter) &&
       (!tagFilter || (u.tags && u.tags.toLowerCase().includes(tagFilter.toLowerCase())))
     )
@@ -58,7 +66,7 @@ export default function UsersPage() {
     setSearch(""); setRoleFilter(""); setStatusFilter(""); setTagFilter("");
   }
 
-  // Mostra tutti i campi dell'utente in un popup read-only
+  // Modal dettagli utente (read-only)
   function UserDetailModal({ user, onClose }) {
     if (!user) return null;
     return (
@@ -88,7 +96,7 @@ export default function UsersPage() {
     );
   }
 
-  // --- PATCH: salva utente (multi-tag ok, senza stravolgimenti) ---
+  // Salva utente
   async function handleSaveUser(userData) {
     const method = userData.id ? "PUT" : "POST";
     const url = userData.id ? `/api/users/${userData.id}` : "/api/users";
@@ -105,16 +113,43 @@ export default function UsersPage() {
     }
   }
 
+  // --- PATCH CRUCIALE: Normalizzazione dei dati per la modale ---
+  function handleEditUser(u) {
+    let roles_teams = [];
+    // Normalizza: accetta vecchio formato (role/team stringa), nuovo formato (id), formato oggetto
+    if (Array.isArray(u.roles_teams) && u.roles_teams.length) {
+      roles_teams = u.roles_teams.map(rt => {
+        // Caso già corretto: {role_id, team_id}
+        if (typeof rt.role_id !== "undefined" && typeof rt.team_id !== "undefined") {
+          return { role_id: rt.role_id, team_id: rt.team_id };
+        }
+        // Caso: {role: "Nome", team: "Nome"}
+        if (typeof rt.role === "string" && typeof rt.team === "string") {
+          return {
+            role_id: roles.find(r => r.name === rt.role)?.id,
+            team_id: teams.find(t => t.name === rt.team)?.id
+          };
+        }
+        // Caso: {role: {id, name}, team: {id, name}}
+        if (typeof rt.role === "object" && typeof rt.team === "object") {
+          return {
+            role_id: rt.role.id,
+            team_id: rt.team.id
+          };
+        }
+        return null;
+      }).filter(Boolean);
+    }
+    setModalUser({ ...u, roles_teams });
+  }
+
   return (
     <div className="users-page" style={{ padding: "2rem" }}>
       <h1 style={{ fontWeight: "bold", marginBottom: 24 }}>Utenti</h1>
       {/* Barra filtri */}
       <div style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 10,
-        marginBottom: 22,
-        alignItems: "center"
+        display: "flex", flexWrap: "wrap", gap: 10,
+        marginBottom: 22, alignItems: "center"
       }}>
         <input
           placeholder="Cerca per nome, cognome, email..."
@@ -156,14 +191,8 @@ export default function UsersPage() {
           <button
             onClick={() => setModalUser({})}
             style={{
-              background: "#0070f3",
-              color: "#fff",
-              padding: "10px 22px",
-              fontWeight: "bold",
-              border: "none",
-              borderRadius: 12,
-              fontSize: 16,
-              cursor: "pointer"
+              background: "#0070f3", color: "#fff", padding: "10px 22px",
+              fontWeight: "bold", border: "none", borderRadius: 12, fontSize: 16, cursor: "pointer"
             }}>
             + Nuovo Utente
           </button>
@@ -172,12 +201,8 @@ export default function UsersPage() {
 
       {/* Tabella */}
       <div style={{
-        background: "#fff",
-        borderRadius: 16,
-        boxShadow: "0 1px 4px #0002",
-        padding: 24,
-        maxWidth: 1250,
-        margin: "auto"
+        background: "#fff", borderRadius: 16, boxShadow: "0 1px 4px #0002",
+        padding: 24, maxWidth: 1250, margin: "auto"
       }}>
         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
           <thead>
@@ -208,16 +233,40 @@ export default function UsersPage() {
                 <td style={tdStyle}>{u.surname}</td>
                 <td style={tdStyle}>{u.email}</td>
                 <td style={tdStyle}>{u.phone}</td>
+                {/* --- RUOLI MULTIPLI --- */}
                 <td style={tdStyle}>
-                  <span style={{
-                    background: "#e3fcec",
-                    color: "#21704e",
-                    fontWeight: 600,
-                    padding: "3px 10px",
-                    borderRadius: 8,
-                  }}>
-                    {u.role}
-                  </span>
+                  {u.roles_teams && u.roles_teams.length > 0
+                    ? u.roles_teams.map((rt, idx) => {
+                        let roleName = typeof rt.role === "string"
+                          ? rt.role
+                          : (typeof rt.role === "object"
+                            ? rt.role?.name
+                            : roles.find(r => r.id === rt.role_id)?.name
+                          );
+                        let teamName = typeof rt.team === "string"
+                          ? rt.team
+                          : (typeof rt.team === "object"
+                            ? rt.team?.name
+                            : teams.find(t => t.id === rt.team_id)?.name
+                          );
+                        return (
+                          <span key={idx} style={{
+                            background: "#e3fcec", color: "#21704e", fontWeight: 600,
+                            padding: "3px 10px", borderRadius: 8, marginRight: 4, display: "inline-block"
+                          }}>
+                            {roleName || ""} - {teamName || ""}
+                          </span>
+                        );
+                      })
+                    : (
+                        <span style={{
+                          background: "#e3fcec", color: "#21704e", fontWeight: 600,
+                          padding: "3px 10px", borderRadius: 8,
+                        }}>
+                          {u.role || "Nessuno"}
+                        </span>
+                      )
+                  }
                 </td>
                 <td style={tdStyle}>
                   <span style={{
@@ -234,13 +283,8 @@ export default function UsersPage() {
                   {(u.tags && u.tags.length > 0)
                     ? u.tags.split(",").map(tag => (
                         <span key={tag} style={{
-                          background: "#e6f4ff",
-                          color: "#0073b1",
-                          padding: "2px 9px",
-                          borderRadius: 8,
-                          marginRight: 4,
-                          fontSize: 13,
-                          fontWeight: 600,
+                          background: "#e6f4ff", color: "#0073b1",
+                          padding: "2px 9px", borderRadius: 8, marginRight: 4, fontSize: 13, fontWeight: 600,
                         }}>{tag}</span>
                       ))
                     : <span style={{color:"#b9b9b9"}}>-</span>
@@ -268,7 +312,7 @@ export default function UsersPage() {
                     👁️
                   </button>
                   <button
-                    onClick={() => setModalUser(u)}
+                    title="Modifica"
                     style={{
                       background: "#f5f5f5",
                       border: "none",
@@ -276,7 +320,9 @@ export default function UsersPage() {
                       padding: "6px 14px",
                       marginRight: 8,
                       cursor: "pointer",
+                      fontSize: "18px",
                     }}
+                    onClick={() => handleEditUser(u)}
                   >
                     ✏️
                   </button>
@@ -289,9 +335,13 @@ export default function UsersPage() {
       </div>
       {modalUser && (
         <UserModal
+          open={!!modalUser}
           user={modalUser}
           onClose={() => setModalUser(null)}
           onSave={handleSaveUser}
+          roles={roles}
+          teams={teams}
+          tags={tags}
         />
       )}
       <style>{`
